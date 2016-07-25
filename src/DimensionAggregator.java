@@ -23,9 +23,9 @@ import java.util.Map;
  * Each element of the array stores a Hashmap values for this combination.
  */
 
-public class DimensionAggregator {
+public class DimensionAggregator implements KeysForNextAggregator {
 	/* Index into Application.DimensionArray */
-	private int aggDimension;  
+	protected int aggDimension;  
 	
 	/* Hashtable of the keys to all possible values of AggregatedDimension */
 	private Hashtable<String, SingleDimension> aggDimensionHash;
@@ -74,13 +74,16 @@ public class DimensionAggregator {
 	 * aggDimensionValue is the value of the dimension we are aggregating on.
 	 * Hashtable values represent the map of this combination
 	 */
-	public void addMapEntry(String key, int aggDimensionValue, Hashtable<String,Float> map) {
+	@Override
+	public boolean addMapEntry(String key, int aggDimensionValue, Hashtable<String,Float> map) {
 		SingleDimension sd = aggDimensionHash.get(key);
 		if( sd == null ) {
 			sd = new SingleDimension(aggDimension);
 			aggDimensionHash.put(key,  sd);
 		}
 		sd.addMap(aggDimensionValue, map);
+		
+		return true;
 	}
 	
 	protected void print() {
@@ -111,11 +114,11 @@ public class DimensionAggregator {
 	 * 3 - We do this for EACH key in this current aggregation.
 	 * 4 - While doing this, we populate the next Dimension Aggregation so we can repeat the process.
 	 */
-	public void processKeys() {
+	public void processKeys(KeysForNextAggregator nextAggregator) {
 		Dimension thisDimension = Application.getApp().dimensionArray.get(this.aggDimension);
 		
-		System.out.printf( "Printing the dimension\n");
-		thisDimension.root.printPreOrder();
+		// System.out.printf( "Printing the dimension\n");
+		// thisDimension.root.printPreOrder();
 		
 		/* Go through each key and process it */
 		Iterator<Map.Entry<String, SingleDimension>> entries = this.aggDimensionHash.entrySet().iterator();
@@ -125,6 +128,9 @@ public class DimensionAggregator {
 			SingleDimension sd = entry.getValue();
 			
 			doProcess(thisDimension.root, sd.aggDimensionMapArray);
+			
+			/* propagate these keys to the next level */
+			addEntriesToNextAggregator(nextAggregator, key, sd);
 		}
 	}
 	
@@ -166,6 +172,15 @@ public class DimensionAggregator {
 				target.put(entry.getKey(), entry.getValue());
 			}
 		}
+	}
+	
+	/*
+	 * After we have generated all combinations for this dimension, we move to the next dimension.
+	 * 
+	 * Note that the current key is for the current dimension.  We need to reconstruct the key
+	 * for the next dimension. 
+	 */
+	private void addEntriesToNextAggregator(KeysForNextAggregator nextAggregator, String key, SingleDimension thisSingleDimension) {
 	}
 }
 

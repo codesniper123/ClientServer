@@ -32,6 +32,7 @@ public class DimensionKey {
 		newKey = null;
 	}
 	
+	/* see comments above class header for definition of output */
 	public boolean split(String completeKey, int aggDimension) {
 		int completeKeyLen = completeKey.length();
 		
@@ -78,4 +79,48 @@ public class DimensionKey {
 		
 		return true;
 	}
+	
+	/*
+	 * This is used to create a new key given: old key, old dimension id, and old dimension value.
+	 * 
+	 * We reconstruct the full key and then split it into the new key.
+	 * 
+	 */
+	public boolean split(String partialKey, int oldDimensionIndex, int oldDimensionValue, int newDimensionIndex) {
+		if( oldDimensionIndex < 0 || oldDimensionIndex >= Application.getApp().dimensionArray.size() ) {
+			System.out.printf( "Aggregated Dimension exceeds known dimensions\n" );
+			return false;
+		}
+		
+		int partialKeyLength = partialKey.length();
+		String completeKey = null;
+		if( oldDimensionIndex == 0) {
+			completeKey = Integer.toString(oldDimensionValue) + "_" + partialKey;
+		} else if( oldDimensionIndex == Application.getApp().dimensionArray.size() - 1) {
+			completeKey = partialKey + "_" + Integer.toString(oldDimensionValue);
+		} else {
+			int index = 0;
+			for(int count = 0; count < oldDimensionIndex; count++) {
+				for(; index < partialKeyLength && partialKey.charAt(index) != '_'; index++)
+					;
+				if( index == partialKeyLength) 
+					break;
+				else
+					index++;
+			}
+			if( index == partialKeyLength) {
+				System.out.printf( "could not find sufficient number of underscores in [%s]\n",  partialKey);
+				return false;
+			}
+			String pre = partialKey.substring(0, index);
+			String post = partialKey.substring(index, partialKeyLength);
+			completeKey = pre + Integer.toString(oldDimensionValue) + "_" + post;
+		}
+		
+		System.out.printf( "complete key [%s] new Dimension Index [%d]\n",  completeKey, newDimensionIndex);
+		
+		/* ok - now we have a complete string and a new dimension index */
+		return split(completeKey, newDimensionIndex);
+	}
 }
+

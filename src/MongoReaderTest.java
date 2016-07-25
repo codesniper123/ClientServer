@@ -16,12 +16,6 @@ public class MongoReaderTest {
 		MongoReader mr = new MongoReader();
 		if( mr.readFile(mongoFile)) {
 			mr.da.print();
-			
-			System.out.printf( "Processing keys\n" );
-			mr.da.processKeys();
-			
-			System.out.printf( "Printing Map again\n" );
-			mr.da.print();
 		}
 	}
 

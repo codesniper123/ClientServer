@@ -117,7 +117,7 @@ public class DimensionKey {
 			completeKey = pre + Integer.toString(oldDimensionValue) + "_" + post;
 		}
 		
-		System.out.printf( "complete key [%s] new Dimension Index [%d]\n",  completeKey, newDimensionIndex);
+		// System.out.printf( "complete key [%s] new Dimension Index [%d]\n",  completeKey, newDimensionIndex);
 		
 		/* ok - now we have a complete string and a new dimension index */
 		return split(completeKey, newDimensionIndex);

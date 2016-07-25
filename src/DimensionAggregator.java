@@ -18,11 +18,15 @@ import java.util.Map;
  * Aggregates data per dimension.
  * 
  * Stores Aggregated dimension (Index into Application.dimensions)
- * Hash table of keys.  A key is constructed of all dimensions except the dimension we are aggregating on
- * Array of possible values of the Aggregated Dimension
- * Each element of the array stores a Hashmap values for this combination.
+ *    This is the dimension we are aggregating on.
+ * 
+ * The structure is a Hashtable of Keys to SingleDimension
+ * 
+ * - A key is constructed with all dimensions except the one we are aggregating on.
+ * - SingleDimension is another class that encapsulates an array of all possible values of the Aggregated Dimension.
+ * - Each entry in the array will point to the "Map" of values which contains the three dimensions that are pre-aggregated. 
+ * 
  */
-
 public class DimensionAggregator implements KeysForNextAggregator {
 	/* Index into Application.DimensionArray */
 	protected int aggDimension;  
@@ -120,6 +124,8 @@ public class DimensionAggregator implements KeysForNextAggregator {
 		// System.out.printf( "Printing the dimension\n");
 		// thisDimension.root.printPreOrder();
 		
+		System.out.printf( "processKeys for dimension [%d] number of keys [%d]\n",  aggDimension, aggDimensionHash.size());
+		
 		/* Go through each key and process it */
 		Iterator<Map.Entry<String, SingleDimension>> entries = this.aggDimensionHash.entrySet().iterator();
 		while( entries.hasNext()) {
@@ -130,7 +136,8 @@ public class DimensionAggregator implements KeysForNextAggregator {
 			doProcess(thisDimension.root, sd.aggDimensionMapArray);
 			
 			/* propagate these keys to the next level */
-			addEntriesToNextAggregator(nextAggregator, key, sd);
+			if( aggDimension > 0 ) 
+				addEntriesToNextAggregator(nextAggregator, key, sd);
 		}
 	}
 	
@@ -181,6 +188,21 @@ public class DimensionAggregator implements KeysForNextAggregator {
 	 * for the next dimension. 
 	 */
 	private void addEntriesToNextAggregator(KeysForNextAggregator nextAggregator, String key, SingleDimension thisSingleDimension) {
+		/*
+		 * Go through each possible value of the dimension.
+		 */
+		if(aggDimension == 0)
+			return;
+		
+		DimensionKey dk = new DimensionKey();
+		for( int i = 0; i < thisSingleDimension.aggDimensionMapArray.length; i++ ) {
+			Hashtable<String,Float> map = (Hashtable<String,Float>)thisSingleDimension.aggDimensionMapArray[i];
+			if(map != null) {
+				/* generate the new key */
+				dk.split(key,  aggDimension, i, aggDimension-1);
+				nextAggregator.addMapEntry(dk.newKey, dk.aggDimensionValue, map);
+			}
+		}
 	}
 }
 

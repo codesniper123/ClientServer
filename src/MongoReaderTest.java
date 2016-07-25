@@ -17,6 +17,11 @@ public class MongoReaderTest {
 		if( mr.readFile(mongoFile)) {
 			mr.da.print();
 		}
+		
+		String s1 = "ABC";
+		String s2 = "DEF";
+		
+		System.out.printf( "hashcode of ABC [%d] DEF [%d]\n",  s1.hashCode(), s2.hashCode());
 	}
 
 }

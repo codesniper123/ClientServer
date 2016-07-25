@@ -27,10 +27,12 @@ public class Application {
 		String dimensionsFile = "/Users/aravind123/Documents/learn-workspace/ClientServer/SampleModel.txt";
 		app.dimensionArray = Dimension.readDimensions(dimensionsFile);
 		
-		String mongoFile = "/Users/aravind123/Documents/learn-workspace/ClientServer/mongo.txt";
+		String mongoFile = "/Users/aravind123/Documents/learn-workspace/ClientServer/complete_mongo.txt";
+		//String mongoFile = "/Users/aravind123/Documents/learn-workspace/ClientServer/mongo.txt";
 		MongoReader mr = new MongoReader();
+		
 		if( mr.readFile(mongoFile)) {
-			mr.da.print();
+			// mr.da.print();
 		}
 		
 		DimensionAggregator current = mr.da;

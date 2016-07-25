@@ -128,6 +128,7 @@ public class DimensionAggregator implements KeysForNextAggregator {
 		
 		/* Go through each key and process it */
 		Iterator<Map.Entry<String, SingleDimension>> entries = this.aggDimensionHash.entrySet().iterator();
+		int numKeys = 0;
 		while( entries.hasNext()) {
 			Map.Entry<String, SingleDimension> entry = entries.next();
 			String key = entry.getKey();
@@ -138,6 +139,15 @@ public class DimensionAggregator implements KeysForNextAggregator {
 			/* propagate these keys to the next level */
 			if( aggDimension > 0 ) 
 				addEntriesToNextAggregator(nextAggregator, key, sd);
+			
+			/* Free up storage for this key */
+			this.aggDimensionHash.put(key, new SingleDimension(aggDimension));
+			
+			numKeys++;
+			
+			if( numKeys % 10000 == 0 ) {
+				System.out.printf( "processed [%d] keys\n", numKeys );
+			}
 		}
 	}
 	

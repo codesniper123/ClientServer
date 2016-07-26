@@ -8,6 +8,9 @@
  *        
  */
 
+import java.io.FileNotFoundException;
+import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.Iterator;
@@ -47,14 +50,14 @@ public class DimensionAggregator implements KeysForNextAggregator {
 		SingleDimension(int aggDimension) {
 			/* create array of all possible values */
 			this.maxDimensionValue = Application.getApp().dimensionArray.get(aggDimension).maxValue+1;
+			aggDimensionMapArray = null;
 		}
 		
-		protected boolean addMap(int aggDimensionValue, Hashtable<String, Float> map) {
-			if( aggDimensionMapArray == null ) {
+		protected boolean addMap(int aggDimensionValue, NVArrayList map) {
+			if( aggDimensionMapArray == null )
 				aggDimensionMapArray = new Object[this.maxDimensionValue];
-			}
-			int maxDimensionValue = Application.getApp().dimensionArray.get(aggDimension).maxValue+1;
-			if( aggDimensionValue > maxDimensionValue ) {
+
+			if( aggDimensionValue >= maxDimensionValue ) {
 				System.out.printf( "Aggregated dimension value exceeds possible values [%d]\n",  aggDimensionValue );
 				return false;
 			}
@@ -69,6 +72,27 @@ public class DimensionAggregator implements KeysForNextAggregator {
 			
 			return true;
 		}
+		
+		public void createHashtable() {
+			for( int i = 0; i < this.aggDimensionMapArray.length; i++ ) {
+				Object o = this.aggDimensionMapArray[i];
+				if( o != null ) {
+					NVArrayList nva = (NVArrayList)o;
+					this.aggDimensionMapArray[i] = nva.getHashtable();
+				}
+				o = null;
+			}
+		}
+		
+		public void clearHashtable() {
+			for( int i = 0; i < this.aggDimensionMapArray.length; i++ ) {
+				Object o = this.aggDimensionMapArray[i];
+				if( o != null ) {
+					o = null;
+				}
+				this.aggDimensionMapArray[i] = null;
+			}
+		}
 	}
 	
 	public DimensionAggregator(int dimension) {
@@ -81,8 +105,9 @@ public class DimensionAggregator implements KeysForNextAggregator {
 	 * aggDimensionValue is the value of the dimension we are aggregating on.
 	 * Hashtable values represent the map of this combination
 	 */
-	@Override
-	public boolean addMapEntry(String key, int aggDimensionValue, Hashtable<String,Float> map) {
+	
+	/* TBD - check if are using this */
+	public boolean addMapEntry(String key, int aggDimensionValue, NVArrayList map) {
 		SingleDimension sd = aggDimensionHash.get(key);
 		if( sd == null ) {
 			sd = new SingleDimension(aggDimension);
@@ -93,9 +118,46 @@ public class DimensionAggregator implements KeysForNextAggregator {
 		return true;
 	}
 	
+	/* This is called after an initial read from the Mongo text file */
+	@Override
+	public boolean addMapEntry(String key, int aggDimensionValue, Hashtable<Short,Float> map) {
+		SingleDimension sd = aggDimensionHash.get(key);
+		if( sd == null ) {
+			sd = new SingleDimension(aggDimension);
+			aggDimensionHash.put(key,  sd);
+		}
+		
+		/* convert this into a NVArrayList */
+		NVArrayList nva = new NVArrayList();
+		nva.readFrom(map);
+		sd.addMap(aggDimensionValue, nva);
+
+		map = null;
+		
+		return true;
+	}
+	
 	@Override 
 	public int getNumKeys() { 
 		return this.aggDimensionHash.size();
+	}
+	
+	@Override
+	public int getNumValues() {
+		Iterator<Map.Entry<String, SingleDimension>> entries = this.aggDimensionHash.entrySet().iterator();
+		int totalEntries = 0;
+		while( entries.hasNext()) {
+			Map.Entry<String, SingleDimension> entry = entries.next();
+			String key = entry.getKey();
+			SingleDimension sd = entry.getValue();
+			
+			/* count the number of items */
+			for( Object o : sd.aggDimensionMapArray ) 
+				if( o != null) 
+					totalEntries++;
+		}
+		
+		return totalEntries;
 	}
 	
 	protected void print() {
@@ -120,50 +182,138 @@ public class DimensionAggregator implements KeysForNextAggregator {
 		}
 	}
 	
+	/* not used currently */
+	public void saveToFile(String file) {
+		try {
+			PrintWriter out = new PrintWriter(file);
+			
+			Iterator<Map.Entry<String, SingleDimension>> entries = this.aggDimensionHash.entrySet().iterator();
+
+			int total = 0;
+			while( entries.hasNext()) {
+				System.out.printf( "Writing [%d] key\n",  ++total);
+				
+				if( total > 100)
+					break;
+				
+				Map.Entry<String, SingleDimension> entry = entries.next();
+				String key = entry.getKey();
+				SingleDimension sd = entry.getValue();
+				
+				out.printf( "%s ", key);
+				for( int i = 0; i < sd.aggDimensionMapArray.length; i++ ) {
+					Object o = sd.aggDimensionMapArray[i];
+					if( o != null ) {
+						out.printf( "%d ",  i );
+						NVArrayList nva = (NVArrayList)o;
+						nva.print(out);
+					}
+				}
+				out.printf("\n");
+			}
+			
+			out.close();
+		} 
+		catch(FileNotFoundException e) {
+			System.out.printf( "Cannot open file [%s] for writing\n",  file);
+		}
+	}
+	
 	/*
 	 * 1 - Populate the leaves by either processing from file or from a prior dimension processing.
 	 * 2 - Populate the parents of the keys by traversing the dimension hierarchy.
 	 * 3 - We do this for EACH key in this current aggregation.
 	 * 4 - While doing this, we populate the next Dimension Aggregation so we can repeat the process.
 	 */
-	public void processKeys(KeysForNextAggregator nextAggregator) {
+	public void processKeys(KeysForNextAggregator nextAggregator, String filename) {
 		Dimension thisDimension = Application.getApp().dimensionArray.get(this.aggDimension);
 		
 		// System.out.printf( "Printing the dimension\n");
 		// thisDimension.root.printPreOrder();
-		
-		System.out.printf( "processKeys for dimension [%d] number of keys [%d]\n",  aggDimension, aggDimensionHash.size());
-		
-		/* Go through each key and process it */
-		Iterator<Map.Entry<String, SingleDimension>> entries = this.aggDimensionHash.entrySet().iterator();
-		int numKeys = 0;
-		while( entries.hasNext()) {
-			Map.Entry<String, SingleDimension> entry = entries.next();
-			String key = entry.getKey();
-			SingleDimension sd = entry.getValue();
+		try {
+			PrintWriter out = null;
 			
-			doProcess(thisDimension.root, sd.aggDimensionMapArray);
-			
-			/* propagate these keys to the next level */
-			if( aggDimension > 0 ) 
-				addEntriesToNextAggregator(nextAggregator, key, sd);
-			
-			/* Free up storage for this key */
-			this.aggDimensionHash.put(key, new SingleDimension(aggDimension));
-			for( Object o : sd.aggDimensionMapArray ) {
-				o = null;
-			}
-			sd = null;
+			if( nextAggregator == null && filename != null ) out = new PrintWriter(filename);
 
-			numKeys++;
+			System.out.printf( "Entering: processKeys - Dimension=[%d] DimensionSize:[%d] #keys [%d] #values [%d]\n",  
+								aggDimension,
+								Application.getApp().dimensionArray.get(aggDimension).maxValue+1,
+								this.getNumKeys(),
+								this.getNumValues());
+								
 			
-			if( numKeys % 10000 == 0 ) {
-				System.out.printf( "processed current [%d] keys - added [%d] keys for next \n", numKeys, nextAggregator.getNumKeys() );
-				System.gc();
+			/* Go through each key and process it */
+			Iterator<Map.Entry<String, SingleDimension>> entries = this.aggDimensionHash.entrySet().iterator();
+			int numKeys = 0;
+			int totalEntries = 0;
+			while( entries.hasNext()) {
+				Map.Entry<String, SingleDimension> entry = entries.next();
+				String key = entry.getKey();
+				SingleDimension sd = entry.getValue();
+				
+				/* before processing it, convert into Hashtable */
+				sd.createHashtable();
+				
+				doProcess(thisDimension.root, sd.aggDimensionMapArray);
+				
+				/* propagate these keys to the next level */
+				if( aggDimension > 0 ) 
+					addEntriesToNextAggregator(nextAggregator, key, sd);
+
+				/* write to the file for the last aggregation */
+				if( out != null ) {
+					out.printf( "%s ", key);
+					for( int i = 0; i < sd.aggDimensionMapArray.length; i++ ) {
+						Object o = sd.aggDimensionMapArray[i];
+						if( o != null ) {
+							out.printf( "%d ",  i );
+							Hashtable<Short, Float> map = (Hashtable<Short, Float>)o;
+							Iterator<Map.Entry<Short, Float>> iter = map.entrySet().iterator();
+							while( iter.hasNext() ) {
+								Map.Entry<Short, Float> mapEntry = iter.next();
+								out.printf("%d:%.2f,", mapEntry.getKey(), mapEntry.getValue());
+							}
+						}
+					}
+					out.printf("\n");
+				}
+				
+				
+				/* count the number of items */
+				for( Object o : sd.aggDimensionMapArray ) 
+					if( o != null) 
+						totalEntries++;
+				
+				/* Free up storage for this key */
+				this.aggDimensionHash.put(key, new SingleDimension(aggDimension));
+				
+				sd.clearHashtable();
+				
+				sd = null;
+	
+				numKeys++;
+				
+				if( numKeys % 50000 == 0 ) {
+					System.out.printf( "processed: keys# [%d] Values# [%d] - added [%d] keys for next \n", 
+							numKeys, totalEntries, nextAggregator != null ? nextAggregator.getNumKeys() : 0);
+					if( numKeys % 100000 == 0 ) {
+						Runtime runtime = Runtime.getRuntime();
+						runtime.gc();
+						long memory = runtime.totalMemory() - runtime.freeMemory();
+						System.out.printf( "Memory used: [%d]MB\n",  memory / (1024*1024));
+						System.out.printf( "Time used [%d]\n",  Application.timer.time() / 1000 );
+					}
+				}
 			}
+			System.out.printf( "Completed: processKeys - Dimension [%d] #values [%d]; NEXT dimension #keys: [%d] #values: [%d]\n",  
+					aggDimension, totalEntries, 
+					nextAggregator != null ? nextAggregator.getNumKeys() : 0, 
+					nextAggregator != null ? nextAggregator.getNumValues() : 0 );
+			if( out != null ) out.close();
+		} 
+		catch(FileNotFoundException e) {
+			System.out.printf( "Cannot open file [%s] for writing\n",  filename);
 		}
-		
-		System.out.printf( "Completed processKeys for dimension [%d] number of keys in NEXT dimension = [%d]\n",  aggDimension, nextAggregator.getNumKeys());
 		
 	}
 	
@@ -174,30 +324,30 @@ public class DimensionAggregator implements KeysForNextAggregator {
 	 * Note that the leaf entries of the tree are already populated in the array.
 	 * 
 	 */
-	private Hashtable<String, Float> doProcess(MyTreeNode<Integer> node, Object aggDimensionMapArray[]) {
-		Hashtable<String, Float> mine = null;
+	private Hashtable<Short, Float> doProcess(MyTreeNode<Integer> node, Object aggDimensionMapArray[]) {
+		Hashtable<Short, Float> mine = null;
 		
 		if( node.children.size() == 0 ) {
-			mine = (Hashtable<String, Float>)aggDimensionMapArray[node.data];
+			mine = (Hashtable<Short, Float>)aggDimensionMapArray[node.data];
 		} else {
-			mine = new Hashtable<String, Float>();
+			mine = new Hashtable<Short, Float>();
 			Iterator<MyTreeNode<Integer>> iter = node.children.iterator();
 			while( iter.hasNext() ) {
-				Hashtable<String,Float> childMap = doProcess(iter.next(), aggDimensionMapArray);
+				Hashtable<Short,Float> childMap = doProcess(iter.next(), aggDimensionMapArray);
 				if( childMap != null)
 					mergeMaps(mine, childMap);
 			}
 			
 			/* Store the map in the array */
-			aggDimensionMapArray[node.data] = mine;
+			aggDimensionMapArray[node.data] = (mine != null && mine.size() > 0) ? mine : null;
 		}
 		return (mine != null && mine.size() > 0) ? mine : null;
 	}
 	
-	private void mergeMaps(Hashtable<String, Float> target, Hashtable<String,Float> src) {
-		Iterator<Map.Entry<String,Float>> iter = src.entrySet().iterator();
+	private void mergeMaps(Hashtable<Short, Float> target, Hashtable<Short,Float> src) {
+		Iterator<Map.Entry<Short,Float>> iter = src.entrySet().iterator();
 		while(iter.hasNext()) {
-			Map.Entry<String, Float> entry = iter.next();
+			Map.Entry<Short, Float> entry = iter.next();
 			Float targetVal = target.get(entry.getKey()); 
 			if( targetVal != null ) {
 				target.put(entry.getKey(), targetVal + entry.getValue());
@@ -222,11 +372,12 @@ public class DimensionAggregator implements KeysForNextAggregator {
 		
 		DimensionKey dk = new DimensionKey();
 		for( int i = 0; i < thisSingleDimension.aggDimensionMapArray.length; i++ ) {
-			Hashtable<String,Float> map = (Hashtable<String,Float>)thisSingleDimension.aggDimensionMapArray[i];
+			Hashtable<Short, Float> map = (Hashtable<Short, Float>)thisSingleDimension.aggDimensionMapArray[i];
 			if(map != null) {
 				/* generate the new key */
 				dk.split(key,  aggDimension, i, aggDimension-1);
 				nextAggregator.addMapEntry(dk.newKey, dk.aggDimensionValue, map);
+				map = null;
 			}
 		}
 	}

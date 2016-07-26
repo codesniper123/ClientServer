@@ -20,6 +20,7 @@ public class MongoReader {
 			}
 			
 			in.close();
+			System.out.printf( "Completed reading Mongo file - number of StringToShort [%d]\n",  MyJSONParserFloat.getNoOfShorts());
 			return true;
 		} catch(FileNotFoundException e) {
 			System.out.printf( "Cannot open file [%s] for reading", filename);
@@ -28,6 +29,7 @@ public class MongoReader {
 			System.out.printf( "Error while reading file [%s]\n", filename);
 			return false;
 		}
+		
 	}
 	
 	/*
@@ -38,7 +40,7 @@ public class MongoReader {
 	public boolean parseLine(String line) {
 		/* Step 1 - create Hash Table for the JSON line */
 		MyJSONParserFloat mjp = new MyJSONParserFloat();
-		Hashtable<String, Float> hash = mjp.parse(line);
+		Hashtable<Short, Float> hash = mjp.parse(line);
 		if( hash == null ) {
 			System.out.printf( "Error in line [%s]\n", line);
 			return false;

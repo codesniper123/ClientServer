@@ -31,7 +31,7 @@ public class NVArrayList {
 			sb = new StringBuffer();
 	}
 
-	public void add(short name, float value) {
+	public void add2(short name, float value) {
 		if( asArray )
 			arrayList.add( new NV(name, value));
 		else

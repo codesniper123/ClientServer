@@ -298,7 +298,7 @@ public class DimensionAggregator implements KeysForNextAggregator {
 							numKeys, totalEntries, nextAggregator != null ? nextAggregator.getNumKeys() : 0);
 					if( numKeys % 100000 == 0 ) {
 						Runtime runtime = Runtime.getRuntime();
-						runtime.gc();
+						//runtime.gc();
 						long memory = runtime.totalMemory() - runtime.freeMemory();
 						System.out.printf( "Memory used: [%d]MB\n",  memory / (1024*1024));
 						System.out.printf( "Time used [%d]\n",  Application.timer.time() / 1000 );

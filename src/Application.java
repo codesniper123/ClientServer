@@ -54,11 +54,18 @@ public class Application {
 			//System.out.printf( "Processing dimension [%d]\n",  current.aggDimension);
 			//current.print();
 			
+			/* free up memory */
+			if( mr != null ) {
+				mr.da = null;
+				mr = null;
+			}
+			
 			current = null;
 			current = next;
+			next = null;
 			
 			Runtime runtime = Runtime.getRuntime();
-			runtime.gc();
+			//runtime.gc();
 			long memory = runtime.totalMemory() - runtime.freeMemory();
 			System.out.printf( "Memory used: [%d]MB\n",  memory / (1024*1024));
 			

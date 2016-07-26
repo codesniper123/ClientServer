@@ -42,14 +42,17 @@ public class DimensionAggregator implements KeysForNextAggregator {
 
 		// private Hashtable<String,String>[] aggDimensionMap;
 		private Object[] aggDimensionMapArray;
+		private int maxDimensionValue;
 		
 		SingleDimension(int aggDimension) {
 			/* create array of all possible values */
-			int maxDimensionValue = Application.getApp().dimensionArray.get(aggDimension).maxValue+1;
-			aggDimensionMapArray = new Object[maxDimensionValue];
+			this.maxDimensionValue = Application.getApp().dimensionArray.get(aggDimension).maxValue+1;
 		}
 		
 		protected boolean addMap(int aggDimensionValue, Hashtable<String, Float> map) {
+			if( aggDimensionMapArray == null ) {
+				aggDimensionMapArray = new Object[this.maxDimensionValue];
+			}
 			int maxDimensionValue = Application.getApp().dimensionArray.get(aggDimension).maxValue+1;
 			if( aggDimensionValue > maxDimensionValue ) {
 				System.out.printf( "Aggregated dimension value exceeds possible values [%d]\n",  aggDimensionValue );
@@ -88,6 +91,11 @@ public class DimensionAggregator implements KeysForNextAggregator {
 		sd.addMap(aggDimensionValue, map);
 		
 		return true;
+	}
+	
+	@Override 
+	public int getNumKeys() { 
+		return this.aggDimensionHash.size();
 	}
 	
 	protected void print() {
@@ -142,13 +150,21 @@ public class DimensionAggregator implements KeysForNextAggregator {
 			
 			/* Free up storage for this key */
 			this.aggDimensionHash.put(key, new SingleDimension(aggDimension));
-			
+			for( Object o : sd.aggDimensionMapArray ) {
+				o = null;
+			}
+			sd = null;
+
 			numKeys++;
 			
 			if( numKeys % 10000 == 0 ) {
-				System.out.printf( "processed [%d] keys\n", numKeys );
+				System.out.printf( "processed current [%d] keys - added [%d] keys for next \n", numKeys, nextAggregator.getNumKeys() );
+				System.gc();
 			}
 		}
+		
+		System.out.printf( "Completed processKeys for dimension [%d] number of keys in NEXT dimension = [%d]\n",  aggDimension, nextAggregator.getNumKeys());
+		
 	}
 	
 	/*
